@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>US Demographics</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      rel="stylesheet"
+      href="https://use.fontawesome.com/releases/v5.8.1/css/solid.css"
+      integrity="sha384-QokYePQSOwpBDuhlHOsX0ymF6R/vLk/UQVz3WHa6wygxI5oGTmDTv8wahFOSspdm"
+      crossorigin="anonymous"
+    />
+    <link
+      href="https://fonts.googleapis.com/css?family=Cantarell"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://use.fontawesome.com/releases/v5.8.1/css/fontawesome.css"
+      integrity="sha384-vd1e11sR28tEK9YANUtpIOdjGW14pS87bUBuOIoBILVWLFnS+MCX9T6MMf0VdPGq"
+      crossorigin="anonymous"
+    />
+    
+    <style>
+      body {
+        font-family: "Cantarell", sans-serif;
+        font-size: 12px;
+      }
+
+      .title {
+        font-family: "Cantarell", serif;
+        font-size: 2.5rem;
+        text-align: center;
+      }
+      
+      .subtitle {
+        font-family: "Cantarell", serif;
+        font-size: 20px;
+        text-align: center;
+      }
+
+      .outbox {
+        display: flex;
+        align-items: center;
+      }
+
+      .mainbox {
+        width: 980px;
+      }
+
+      .sidebox {
+        width: 300px;
+      }
+
+      #map-svg {
+        stroke-linejoin: round;
+        stroke-linecap: round;
+      }
+
+      #map-svg .background-rect {
+        fill: none;
+        cursor: pointer;
+      }
+
+      #map-svg .state-title {
+        font-family: "Cantarell", serif;
+        fill: #000;
+        font-size: 2rem;
+        text-anchor: middle;
+      }
+
+      #map-svg .county-polygon {
+        stroke: #fff;
+        stroke-width: 0.5px;
+        vector-effect: non-scaling-stroke;
+        transition-duration: 0.2s;
+      }
+
+      #map-svg .county-polygon:hover {
+        stroke: #000;
+        stroke-width: 1px;
+      }
+
+      #map-svg .state {
+        pointer-events: all;
+        cursor: pointer;
+      }
+
+      #map-svg .state-polygon {
+        fill: #ddd;
+        fill-opacity: 0.6;
+      }
+
+      #map-svg .state-name-bg {
+        stroke-width: 0.25em;
+        stroke: #fff;
+        pointer-events: none;
+      }
+
+      #map-svg .state-name {
+        fill: #000;
+        pointer-events: none;
+      }
+
+      #map-svg .state-border {
+        fill: none;
+        stroke: #fff;
+        stroke-width: 1px;
+        vector-effect: non-scaling-stroke;
+        pointer-events: none;
+      }
+
+      #map-tooltip {
+        position: fixed;
+        pointer-events: none;
+        padding: 0.75em 1em;
+        border-radius: 2px;
+        background-color: rgba(255, 255, 255, 0.8);
+        color: #000;
+        opacity: 0;
+        max-width: 200px;
+      }
+
+      /* https://www.w3schools.com/csS/css3_buttons.asp */
+      #buttons-container .variable-button {
+        display: block;
+        text-align: center;
+        text-decoration: none;
+        margin: 1em auto;
+        padding: 0.75em 1em;
+        border-radius: 2px;
+        border: 2px solid #115ca3;
+        background-color: #fff;
+        color: #115ca3;
+        width: 150px;
+        cursor: pointer;
+        transition-duration: 0.2s;
+      }
+
+      #buttons-container .variable-button:hover,
+      #buttons-container .variable-button.selected {
+        background-color: #115ca3;
+        color: #fff;
+      }
+
+      .year-control {
+        position: relative;
+      }
+
+      /* https://www.w3schools.com/howto/howto_css_icon_buttons.asp */
+      #play-button {
+        display: inline-block;
+        position: absolute;
+        left: -2.5em;
+        top: 10px;
+        padding: 0.75em 1em;
+        border-radius: 2px;
+        border: 2px solid #115ca3;
+        background-color: #fff;
+        color: #115ca3;
+        cursor: pointer;
+        transition-duration: 0.2s;
+      }
+
+      #play-button:hover {
+        background-color: #115ca3;
+        color: #fff;
+      }
+
+      #slider-svg .track {
+        fill: #115ca3;
+        fill-opacity: 0.3;
+      }
+
+      #slider-svg .track-overlay {
+        fill: none;
+        pointer-events: all;
+        cursor: pointer;
+      }
+
+      #slider-svg .handle {
+        fill: #115ca3;
+        stroke: #000;
+      }
+    </style>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="https://unpkg.com/topojson@3"></script>
+  </head>
+
+  <body>
+    <h1 class="title">Demographic Estimates 2011-2017</h1>
+    <h2 class="subtitle">SARC5400 - Ruslan Askerov - Final Project</h2>
+    <div class="outbox">
+      <div class="mainbox">
+        <svg id="map-svg"></svg>
+      </div>
+      <div class="sidebox">
+        <div id="buttons-container"></div>
+        <div>
+          <svg id="legend-svg"></svg>
+        </div>
+        <div class="year-control">
+          <button id="play-button"><i class="fas fa-play"></i></button>
+          <svg id="slider-svg"></svg>
+        </div>
+      </div>
+      <div id="map-tooltip"></div>
+    </div>
+
+    <script>
+        
+      // READ DATA
+      // http://learnjsdata.com/read_data.html
+        
+      Promise.all([
+        d3.json("https://cdn.jsdelivr.net/npm/us-atlas@2/us/10m.json"),
+        d3.csv("data.csv")
+      ]).then(data => {
+        var us = data[0];
+        var csv = data[1];
+
+        // Filter out non-county rows out
+        var filteredCSV = csv.filter(d => {
+          var countyCode = d.FIPS.slice(2);
+          if (countyCode === "000") {
+            return false;
+          } else {
+            return true;
+          }
+        });
+
+        // https://github.com/d3/d3-array#range
+        var allYears = d3.range(2011, 2018);
+
+        var allVariables = [
+          {
+            name: "unemployment",
+            display: "Unemployment Rate",
+            csvColumnPreFix: "Unemployment_rate_",
+            def:
+              "Unemployment rate is the number of unemployed people as a percentage of the civilian labor force."
+          },
+          {
+            name: "birthRate",
+            display: "Birth Rate",
+            csvColumnPreFix: "R_birth_",
+            def:
+              "Birth rate is the average annual number of births during a year per 1,000 population at midyear."
+          },
+          {
+            name: "deathRate",
+            display: "Death Rate",
+            csvColumnPreFix: "R_death_",
+            def:
+              "Death rate is the average annual number of deaths during a year per 1,000 population at midyear."
+          },
+          {
+            name: "naturalIncRate",
+            display: "Natural Increase Rate",
+            csvColumnPreFix: "R_NATURAL_INC_",
+            def:
+              "Natural increase rate is the difference between the birth rate and the death rate."
+          },
+          {
+            name: "netMigRate",
+            display: "Net Migration Rate",
+            csvColumnPreFix: "R_NET_MIG_",
+            def:
+              "Net migration rate is the difference between the number of migrants entering and those leaving a country in a year, per 1,000 midyear population."
+          }
+        ];
+
+        // Collect all values for each variable for calculating color scale's domain
+        var domains = {};
+        allVariables.forEach(variable => {
+          domains[variable.name] = [];
+        });
+
+        // Convert the filteredCSV to an object for easy lookup
+        var countiesData = {};
+        filteredCSV.forEach(d => {
+          var county = {};
+          county.FIPS = d.FIPS;
+          county.state = d.FIPS.slice(0, 2);
+          county.name = d.Area_Name;
+
+          // Add variable's data
+          allVariables.forEach(variable => {
+            county[variable.name] = {};
+            allYears.forEach(year => {
+              var value = +d[`${variable.csvColumnPreFix}${year}`];
+              county[variable.name][year] = value;
+              domains[variable.name].push(value);
+            });
+          });
+          // Add county's data to countiesData
+          countiesData[county.FIPS] = county;
+        });
+
+        // Embed county's data into topojson file
+        var countiesGeo = us.objects.counties.geometries;
+
+        countiesGeo.forEach(countyGeo => {
+          var countyData = countiesData[countyGeo.id];
+          countyGeo.properties = countyData;
+        });
+
+        // Generate a state id to state name dictionary for tooltip showing state name
+        var stateIdToStateName = {};
+        us.objects.states.geometries.forEach(stateGeo => {
+          stateIdToStateName[stateGeo.id] = stateGeo.properties.name;
+        });
+
+        // Add a color scale for each variable
+        // https://github.com/d3/d3-scale
+        // https://github.com/d3/d3-scale-chromatic
+        // Manually set the domain and the legend ticks
+        allVariables.forEach(variable => {
+          var [min, max] = d3.extent(domains[variable.name]);
+          console.log(variable.name, min, max);
+          switch (variable.name) {
+            case "unemployment":
+              variable.color = d3
+                .scaleSequential()
+                .domain([0, 16])
+                .interpolator(d3.interpolateGreens);
+              variable.ticks = [0, 4, 8, 12, 16];
+              // Format tick text
+              // https://github.com/d3/d3-format
+              variable.tickFormat = d3.format("d");
+              break;
+            case "birthRate":
+              variable.color = d3
+                .scaleSequential()
+                .domain([0, 32])
+                .interpolator(d3.interpolateGreens);
+              variable.ticks = [0, 4, 8, 12, 16, 20, 24, 28, 32];
+              variable.tickFormat = d3.format("d");
+              break;
+            case "deathRate":
+              variable.color = d3
+                .scaleSequential()
+                .domain([0, 28])
+                .interpolator(d3.interpolateReds);
+              variable.ticks = [0, 4, 8, 12, 16, 20, 24, 28];
+              variable.tickFormat = d3.format("d");
+              break;
+            case "naturalIncRate":
+              variable.color = d3
+                .scaleDiverging()
+                .domain([-20, 0, 20])
+                .interpolator(d3.interpolateRdBu);
+              variable.ticks = [-20, -15, -10, -5, 0, 5, 10, 15, 20];
+              variable.tickFormat = d3.format("d");
+              break;
+            case "netMigRate":
+              variable.color = d3
+                .scaleDiverging()
+                .domain([-80, 0, 80])
+                .interpolator(d3.interpolateRdBu);
+              variable.ticks = [-80, -60, -40, -20, 0, 20, 40, 60, 80];
+              variable.tickFormat = d3.format("d");
+              break;
+            default:
+              break;
+          }
+        });
+
+        let selectedYear = allYears[allYears.length - 1];
+        let selectedVariable = allVariables[0].name;
+        let isPlaying = false;
+        let timer;
+        let tooltipCounty; // Track the county polygon where tooltip is on
+        var mouseoverEvent = new Event("mouseover"); // Manually trigger mouse event to update tooltip when the animation is playing
+
+        // RENDER MAP
+        // https://observablehq.com/@d3/choropleth
+        var geoPath = d3.geoPath();
+
+        var zoom = d3.zoom().on("zoom", zoomed);
+
+        var mapSVG = d3
+          .select("#map-svg")
+          .attr("width", 960)
+          .attr("height", 600);
+
+        // Background rect to collect pointer events
+        var backgroundRect = mapSVG
+          .append("rect")
+          .attr("class", "background-rect")
+          .attr("width", 960)
+          .attr("height", 600)
+          .on("click", zoomOut);
+
+        // State title when zooming in
+        var stateTitle = mapSVG
+          .append("text")
+          .attr("class", "state-title")
+          .attr("x", 480)
+          .attr("y", 80);
+
+        var mapG = mapSVG.append("g");
+
+        // Counties
+        var countiesG = mapG
+          .append("g")
+          .attr("class", "counties")
+          .style("pointer-events", "none");
+
+        // County polygon
+        var countyPath = countiesG
+          .selectAll(".county-polygon")
+          .data(topojson.feature(us, us.objects.counties).features)
+          .enter()
+          .append("path")
+          .attr("class", "county-polygon")
+          .attr("fill", "#fff")
+          .attr("d", geoPath)
+          .attr("stroke-opacity", 1) // 1 - county borders are visible when zoomed out. 0 - No county borders when zoomed out
+          .on("mouseover", showTooltip)
+          .on("mousemove", moveTooltip)
+          .on("mouseout", hideTooltip);
+
+        // States
+        var statesG = mapG.append("g").attr("class", "states");
+
+        var stateG = statesG
+          .selectAll(".state")
+          .data(topojson.feature(us, us.objects.states).features)
+          .enter()
+          .append("g")
+          .attr("class", "state")
+          .attr("opacity", 0) // Show state fill and name only when hovered over
+          .on("mouseover", function() {
+            d3.select(this)
+              .raise()
+              .transition()
+              .attr("opacity", 1);
+          })
+          .on("mouseout", function() {
+            d3.select(this)
+              .transition()
+              .attr("opacity", 0);
+          })
+          .on("click", zoomIn);
+
+        // State polygon
+        stateG
+          .append("path")
+          .attr("class", d => "state-polygon")
+          .attr("d", geoPath);
+
+        // State name
+        stateG
+          .append("text")
+          .attr("class", d => "state-name-bg") // Add background for text for easy reading
+          .text(d => d.properties.name)
+          .attr("x", d => geoPath.centroid(d)[0])
+          .attr("y", d => geoPath.centroid(d)[1])
+          .attr("text-anchor", "middle")
+          .clone(true) // https://github.com/d3/d3-selection/blob/master/README.md#selection_clone
+          .attr("class", "state-name");
+
+        // State border
+        statesG
+          .append("path")
+          .attr("class", "state-border")
+          .datum(topojson.mesh(us, us.objects.states, (a, b) => a !== b))
+          .attr("d", geoPath);
+
+        updateMap();
+        renderLegend();
+        // Map update function to update county color
+        function updateMap() {
+          var variable = getSelectedVariable();
+          countyPath
+            .transition()
+            .attr("fill", d =>
+              variable.color(d.properties[selectedVariable][selectedYear])
+            );
+        }
+
+        function zoomed() {
+          mapG.attr("transform", d3.event.transform);
+        }
+
+        // Zoom out to the country level
+        function zoomOut() {
+          mapSVG
+            .transition()
+            .duration(750)
+            .call(zoom.transform, d3.zoomIdentity)
+            .on("start", () => {
+              // Make counties layer unhoverable to avoid accidentally triggering tooltip
+              countiesG.style("pointer-events", "none");
+              // When zooming out, background rect isn't needed to trigger zoom out anymore
+              backgroundRect.style("pointer-events", "none");
+              stateTitle.text("");
+              statesG.style("display", "inline");
+              countyPath.attr("stroke-opacity", 0).style("display", "inline");
+            })
+            .on("end", () => {
+              statesG.style("pointer-events", "all");
+            });
+        }
+
+        // Zoom in to the state level
+        function zoomIn(d) {
+          var selectedState = d.id;
+          // https://bl.ocks.org/iamkevinv/0a24e9126cd2fa6b283c6f2d774b69a2
+          var bounds = geoPath.bounds(d),
+            dx = bounds[1][0] - bounds[0][0],
+            dy = bounds[1][1] - bounds[0][1],
+            x = (bounds[0][0] + bounds[1][0]) / 2,
+            y = (bounds[0][1] + bounds[1][1]) / 2,
+            maxZoomWidth = 700,
+            maxZoomHeight = 400,
+            scale = Math.max(
+              1,
+              Math.min(8, 0.9 / Math.max(dx / maxZoomWidth, dy / maxZoomHeight))
+            ),
+            translate = [
+              maxZoomWidth / 2 - scale * x,
+              maxZoomHeight / 2 - scale * y + 100
+            ];
+
+          mapSVG
+            .transition()
+            .duration(750)
+            .call(
+              zoom.transform,
+              d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
+            )
+            .on("start", () => {
+              // Make state layer immediately unclickable to avoid accidentally clicking another state
+              statesG.style("pointer-events", "none");
+            })
+            .on("end", () => {
+              statesG.style("display", "none");
+              countyPath
+                .attr("stroke-opacity", d =>
+                  d.properties.state === selectedState ? 1 : 0
+                )
+                .style("display", d =>
+                  d.properties.state === selectedState ? "inline" : "none"
+                );
+              countiesG.style("pointer-events", "all");
+              // Make the background rect clickable so zoom out can be triggered
+              backgroundRect.style("pointer-events", "all");
+              // Update the state title with zoomed in state name
+              stateTitle.text(d.properties.name);
+            });
+        }
+
+        //TOOLTIP
+          
+        var tooltip = d3.select("#map-tooltip");
+
+        function showTooltip(d) {
+          var variable = getSelectedVariable();
+          var formattedValue = d3.format(",")(
+            d.properties[selectedVariable][selectedYear]
+          );
+          let content = `
+            <table><tbody>
+              <tr><td>County</td><td>${d.properties.name}</td></tr>
+              <tr><td>State</td><td>${
+                stateIdToStateName[d.properties.state]
+              }</td></tr>
+              <tr><td>Year</td><td>${selectedYear}</td></tr>
+              <tr><td>Variable</td><td>${variable.display}</td></tr>
+              <tr><td>Value</td><td>${formattedValue}</td></tr>
+            </table></tbody>
+          `;
+          tooltip.html(content);
+          tooltip.transition().style("opacity", 1);
+          tooltipCounty = this;
+          d3.select(this).raise(); // Move the polygon to the top so the border can be highlighted
+        }
+
+        function moveTooltip() {
+          tooltip
+            .style("left", `${d3.event.x + 10}px`)
+            .style("top", `${d3.event.y + 10}px`);
+        }
+
+        function hideTooltip() {
+          tooltip.transition().style("opacity", 0);
+          if (tooltipCounty) {
+            tooltipCounty = null;
+          }
+        }
+
+        function showButtonTooltip(d) {
+          let content = `<div>${d.def}</div>`;
+          tooltip.html(content);
+
+          // https://developer.mozilla.org/en-US/docs/Web/API/Element/getBoundingClientRect
+          var tooltipBox = tooltip.node().getBoundingClientRect();
+          var buttonBox = this.getBoundingClientRect(); // "this" is the <button> element
+          var left = buttonBox.left - tooltipBox.width;
+          var top =
+            buttonBox.top + buttonBox.height / 2 - tooltipBox.height / 2;
+          tooltip.style("left", `${left}px`).style("top", `${top}px`);
+          tooltip.transition().style("opacity", 1);
+        }
+
+        // LEGEND
+          
+        function renderLegend() {
+          var legendSVG = d3
+            .select("#legend-svg")
+            .attr("width", 300)
+            .attr("height", 50);
+
+          // Delete the previous legend
+          legendSVG.selectAll("*").remove();
+
+          var variable = getSelectedVariable();
+          var ticks = variable.ticks;
+
+          var x = d3
+            .scalePoint()
+            .domain(ticks)
+            .range([25, 275]);
+
+          var g = legendSVG.append("g").attr("transform", "translate(0, 20)");
+
+          g.selectAll("rect")
+            .data(ticks.slice(0, ticks.length - 1)) // rectangles are one fewer than ticks
+            .enter()
+            .append("rect")
+            .attr("height", 8)
+            .attr("x", d => x(d))
+            .attr("width", x.step())
+            .attr("fill", d => variable.color(d));
+
+          g.append("text")
+            .attr("x", x.range()[0])
+            .attr("y", -6)
+            .attr("fill", "#000")
+            .attr("text-anchor", "start")
+            .attr("font-size", "10px")
+            .text(variable.display);
+
+          g.call(
+            d3
+              .axisBottom(x)
+              .tickSize(13)
+              .tickFormat(d => d)
+              .tickValues(ticks)
+              .tickFormat(variable.tickFormat)
+          )
+            .select(".domain")
+            .remove();
+        }
+
+        // BUTTONS
+          
+        var variableButton = d3
+          .select("#buttons-container")
+          .selectAll(".variable-button")
+          .data(allVariables)
+          .enter()
+          .append("button")
+          .attr("class", "variable-button")
+          .classed("selected", d => d.name === selectedVariable)
+          .attr("value", d => d.name)
+          .text(d => d.display)
+          .on("mouseover", showButtonTooltip)
+          .on("mouseout", hideTooltip)
+          .on("click", d => {
+            // If clicked button is already selected, do nothing
+            if (selectedVariable === d.name) return;
+            // Change selected variable to the clicked button
+            selectedVariable = d.name;
+            variableButton.classed(
+              "selected",
+              e => e.name === selectedVariable
+            );
+            updateMap();
+            renderLegend();
+          });
+
+        
+        
+        d3.select("#play-button").on("click", function() {
+          if (isPlaying) {
+            // Stop playing
+            isPlaying = false;
+            // Change button icon to play
+            d3.select(this)
+              .select("i")
+              .classed("fa-play", true)
+              .classed("fa-pause", false);
+
+            clearInterval(timer);
+          } else {
+            // Start playing
+            isPlaying = true;
+            // Change button icon to pause
+            d3.select(this)
+              .select("i")
+              .classed("fa-play", false)
+              .classed("fa-pause", true);
+
+            timer = setInterval(() => {
+              // Increment selectedYear
+              if (selectedYear === allYears[allYears.length - 1]) {
+                selectedYear = allYears[0];
+              } else {
+                selectedYear++;
+              }
+              updateSlider();
+              updateMap();
+              if (tooltipCounty) {
+                tooltipCounty.dispatchEvent(mouseoverEvent);
+              }
+            }, 1000);
+          }
+        });
+
+        // SLIDER
+        // https://bl.ocks.org/mbostock/6452972
+        var sliderSVG = d3
+          .select("#slider-svg")
+          .attr("width", 300)
+          .attr("height", 50);
+
+        var xSlider = d3
+          .scaleLinear()
+          .domain([allYears[0], allYears[allYears.length - 1]])
+          .range([25, 275]);
+
+        var slider = sliderSVG
+          .append("g")
+          .attr("class", "slider")
+          .attr("transform", "translate(0, 20)");
+
+        slider
+          .append("text")
+          .attr("x", xSlider.range()[0])
+          .attr("y", -6)
+          .attr("fill", "#000")
+          .attr("text-anchor", "start")
+          .attr("font-size", "10px")
+          .text("Year");
+
+        slider
+          .append("rect")
+          .attr("class", "track")
+          .attr("x", xSlider.range()[0])
+          .attr("width", xSlider.range()[1] - xSlider.range()[0])
+          .attr("height", 8)
+          .clone(true)
+          .attr("class", "track-overlay") // Make an invisible track that's thicker than the visible track for easy dragging
+          .attr("y", -12)
+          .attr("height", 32)
+          .call(
+            d3
+              .drag()
+              .on("start.interrupt", () => slider.interrupt())
+              .on("start drag", dragging)
+          );
+
+        slider
+          .insert("g", ".track-overlay")
+          .call(
+            d3
+              .axisBottom(xSlider)
+              .tickSize(13)
+              .tickValues(allYears)
+              .tickFormat(d3.format("d"))
+          )
+          .select(".domain")
+          .remove();
+
+        var handle = slider
+          .insert("circle", ".track-overlay")
+          .attr("class", "handle")
+          .attr("cy", 4)
+          .attr("r", 8);
+
+        function dragging() {
+          selectedYear = Math.round(xSlider.invert(d3.event.x));
+          updateSlider();
+          updateMap();
+        }
+
+        function updateSlider() {
+          handle.attr("cx", xSlider(selectedYear));
+        }
+
+        updateSlider();
+
+       
+        function getSelectedVariable() {
+          return allVariables.find(
+            variable => variable.name === selectedVariable
+          );
+        }
+      });
+    </script>
+  </body>
+</html>
